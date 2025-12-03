@@ -162,6 +162,7 @@ async function run() {
     const userCollection = db.collection("users");
     const parcelsCollection = db.collection("parcels");
     const paymentCollection = db.collection("payment");
+    const ridersCollection = db.collection("riders");
 
     // users related apis
     app.post("/users", async (req, res) => {
@@ -169,9 +170,9 @@ async function run() {
       user.role = "user";
       user.createdAt = new Date();
       const email = user.email;
-      const userExists = await userCollection.findOne({email})
-      if(userExists){
-        return res.send({message:'user exists'}) 
+      const userExists = await userCollection.findOne({ email });
+      if (userExists) {
+        return res.send({ message: "user exists" });
       }
 
       const result = await userCollection.insertOne(user);
@@ -349,6 +350,56 @@ async function run() {
       const result = await cursor.toArray();
       res.send(result);
     });
+
+    // riders related apis
+
+    app.get("/riders", async (req, res) => {
+      const query = {};
+      if (req.query.status) {
+        query.status = req.query.status;
+      }
+      const cursor = ridersCollection.find(query);
+      const result = await cursor.toArray();
+      res.send(result);
+    });
+
+    app.post("/riders", async (req, res) => {
+      const rider = req.body;
+      rider.status = "pending";
+      rider.createdAt = new Date();
+
+      const result = await ridersCollection.insertOne(rider);
+      res.send(result);
+    });
+
+    app.patch("/riders/:id", verifyFBToken, async (req, res) => {
+      const status = req.body.status;
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const updateDoc = {
+        $set: {
+          status: status,
+        },
+      };
+      const result = await ridersCollection.updateOne(query, updateDoc);
+
+      if (status === "approved") {
+        const email = req.body.email;
+        const userQuery = { email };
+        const updateUser = {
+          $set: {
+            role: "rider",
+          },
+        };
+        const userResult = await userCollection.updateOne(
+          userQuery,
+          updateUser
+        );
+      }
+
+      res.send(result);
+    });
+
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
     console.log(
